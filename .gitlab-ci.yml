@@ -1,0 +1,78 @@
+stages:
+  - sast
+  - build
+  - test
+  - notify-helm
+
+variables: {PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip/}
+
+default:
+  cache:
+    key: cache-key
+    paths: [.cache/pip/]
+    when: always
+
+sast:
+  stage: sast
+include:
+  - template: Security/SAST.gitlab-ci.yml
+
+build_image:
+  stage: build
+  image: moby/buildkit:rootless # docker:24.0.6 # Use a Docker image that includes the Docker CLI
+  tags: [kubernetes, yandex-cloud]
+  variables:
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    CACHE_IMAGE: $CI_REGISTRY_IMAGE:cache
+  before_script:
+    - mkdir -p ~/.docker
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > ~/.docker/config.json
+  script:
+    - >
+      buildctl-daemonless.sh build
+      --frontend dockerfile.v0
+      --local context=.
+      --local dockerfile=.
+      --opt platform=linux/amd64
+      --export-cache type=registry,ref=$CACHE_IMAGE
+      --import-cache type=registry,ref=$CACHE_IMAGE
+      --output type=image,name=$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA,push=true
+
+
+#test back-end:
+#  stage: test
+#  tags: [kubernetes, yandex-cloud]
+#  image: python:3.13-slim
+#  services:
+#    - name: pgvector/pgvector:0.8.1-pg18-trixie
+#      variables:
+#        POSTGRES_USER: code_father
+#        POSTGRES_PASSWORD: 10Fh5GP3g
+#        PGDATA: /var/lib/postgresql/data/pgdata
+#  artifacts:
+#    paths: [Logs/]
+#    when: always
+#  before_script:
+#    - mkdir -p Logs
+#    - touch Logs/log.log
+#  script:
+#    - pip install --root-user-action=ignore --no-warn-script-location -r requirements.txt
+#    - set -a; source .test.env; set +a
+#    - alembic -x data=true upgrade head
+#    - python -m pytest . -m "not slow and not agent"
+
+trigger-helm-update:
+  stage: notify-helm
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+  tags: [kubernetes, yandex-cloud]
+  image: alpine/curl
+  dependencies: []
+  script:
+    - >
+      curl --fail --request POST
+      --form "token=$HELM_TRIGGER_TOKEN"
+      --form "ref=main"
+      --form "variables[APP_VERSION]=$CI_COMMIT_SHA"
+      --form "variables[VALUES_FILE_PATH]=coffee-and-code-backend/Chart.yaml"
+      "https://gitlab.com/api/v4/projects/77043097/trigger/pipeline"

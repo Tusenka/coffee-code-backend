@@ -1,0 +1,27 @@
+name: coffee_and_code
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg18-trixie
+    container_name: postgres_container
+    shm_size: "2gb"
+    environment:
+      POSTGRES_USER: code_father
+      POSTGRES_PASSWORD: 10Fh5GP3g
+      POSTGRES_DB: code_father
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports: ['5432:5432']
+    volumes: [./.pgdata:/var/lib/postgresql/data/pgdata]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U code_father -d code_father]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+  python: {build: coffee_and_code-develop }
+
+volumes:
+  pgdata:
+    driver: local

@@ -1,0 +1,78 @@
+name: coffee_and_code
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg18-trixie
+    container_name: postgres_container
+    shm_size: '4gb'
+    environment:
+      POSTGRES_USER: code_father
+      POSTGRES_PASSWORD: 10Fh5GP3g
+      POSTGRES_DB: code_father
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports: ['5432:5432']
+    volumes: [./.pgdata:/var/lib/postgresql/data/pgdata]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U code_father -d code_father]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoriametrics_container
+    ports:
+      - '8428:8428'
+    command:
+      - -storageDataPath=/storage
+    volumes:
+      - victoriametrics_data:/storage
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel_collector_container
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector-configs.yaml:/etc/otel-collector-configs.yaml
+    restart: unless-stopped
+    depends_on:
+      - victoriametrics
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki_container
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_container
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+      - GF_LOG_LEVEL=info
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+  victoriametrics_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
+    driver: local
