@@ -2,14 +2,14 @@
 
 ## Локальный запуск
 ```
-docker compose -f docker-composer-local.yaml up --remove-orphans
 pip install -r requirements.txt
 pip install -r agent_requirements.txt
+docker compose -f docker-compose-local.yaml up --remove-orphans
+python agent.py
 python app.py
-python agent/app.py
 ```
 
-## Мониторинг и логирование локального запущенного приложения 
+## Мониторинг и логирование локального запущенного приложения
 
 ### Loki
 Логи приложения отправляются в Loki (работает на порту 3100). Для отправки логов используется библиотека `python-logging-loki`. Конфигурация находится в `agent/app.py`.

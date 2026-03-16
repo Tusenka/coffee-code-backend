@@ -38,3 +38,11 @@ class UpdateUserActiveNotAllowed(HTTPException):
             status_code=400,
             detail=detail.format(user_id=user_id),
         )
+
+
+class NotificationForbidden(HTTPException):
+    def __init__(self, detail="Уведомление не найдено или доступ запрещен!"):
+        super().__init__(
+            detail=detail,
+            status_code=404,
+        )

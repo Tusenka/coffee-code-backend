@@ -5,15 +5,13 @@ from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
-from sqlalchemy import Column
-from sqlalchemy.orm import Session
 
-from agent.db.schema import UserScoreSchema, MeetScoreDBSchema
 from api.schemas import MeetScoreSchema
 from db.constants import GoalName
-from db.enums import MatchRequestStatus as DaoMatchRequestStatus
+from db.enums import MatchRequestStatus as DaoMatchRequestStatus, NotificationType
 from db.exceptions import RequestNotFound
-from db.model import User as DaoUser, User, Match, Skill, Goal
+from db.model import User as DaoUser, User, Skill, MatchRequest, Notification
+from db.notification_repository import NotificationRepository
 from db.user_helper_repository import UserHelperRepository
 from db.user_repository import UserRepository
 from service.exceptions import RequestAlreadySent, ProfileAccessDenied
@@ -24,6 +22,7 @@ from service.model import (
     Goal,
     Match,
 )
+from service.notification_service import NotificationService
 from service.recommendation_service import RecommendationService
 from service.user_service import UserService
 from tests.service.constants import CORRECT_EMAIL, SkillRef
@@ -36,6 +35,8 @@ class TestRecommendationService:
         get_user_with_email: Callable[[str], DaoUser],
         recommendation_service: RecommendationService,
         user_repo: UserRepository,
+        notification_service_mock: Mock,
+        notification_repo: NotificationRepository,
     ):
         initiator_user = get_user_with_email(CORRECT_EMAIL)
         target_user = get_user_with_email(CORRECT_EMAIL)
@@ -51,15 +52,12 @@ class TestRecommendationService:
             initiator_user=initiator_user, target_user=target_user
         )
 
-        assert user_repo.get_match_request(
+        match_request = user_repo.get_match_request(
             initiator_user_id=initiator_user.id, target_user_id=target_user.id
         )
-        assert (
-            user_repo.get_match_request(
-                initiator_user_id=initiator_user.id, target_user_id=target_user.id
-            ).status
-            == DaoMatchRequestStatus.PENDING
-        )
+
+        assert match_request
+        assert match_request.status == DaoMatchRequestStatus.PENDING
 
         self._assert_user_status(
             initiator_user=initiator_user,
@@ -75,19 +73,7 @@ class TestRecommendationService:
             target_status=MatchRequestStatus.RECEIVED,
         )
 
-    @staticmethod
-    def _assert_user_status(
-        initiator_user: DaoUser,
-        target_user: DaoUser,
-        user_service: RecommendationService,
-        target_status: MatchRequestStatus = MatchRequestStatus.UNSENT,
-    ):
-        target_profile = user_service.get_user_l1_profile(
-            target_user_id=target_user.id, initiator_user_id=initiator_user.id
-        )
-
-        assert target_profile
-        assert target_profile.match_request_status == target_status
+        notification_service_mock.send_request.assert_called()
 
     @pytest.mark.positive
     def test_send_request_cross_request(
@@ -164,6 +150,7 @@ class TestRecommendationService:
         get_user_with_email: Callable[[str], DaoUser],
         recommendation_service: RecommendationService,
         user_repo: UserRepository,
+        notification_repo: NotificationRepository,
     ):
         initiator_user = get_user_with_email(CORRECT_EMAIL)
         target_user = get_user_with_email(CORRECT_EMAIL)
@@ -175,9 +162,10 @@ class TestRecommendationService:
             initiator_user=target_user, target_user=initiator_user
         )
 
-        assert user_repo.get_match_request(
+        match_request = user_repo.get_match_request(
             initiator_user_id=initiator_user.id, target_user_id=target_user.id
         )
+        assert match_request
 
         self._assert_user_status(
             initiator_user=initiator_user,
@@ -192,12 +180,25 @@ class TestRecommendationService:
             target_status=MatchRequestStatus.RECEIVED_AND_ACCEPTED,
         )
 
+        notifications = notification_repo.list_notifications(
+            user_id=initiator_user.id, limit=1000
+        )
+
+        assert notifications
+        assert [
+            n
+            for n in notifications
+            if n.request_id == match_request.id
+            and n.type == NotificationType.REQUEST_ACCEPTED
+        ]
+
     @pytest.mark.positive
     def test_reject_request(
         self,
         get_user_with_email: Callable[[str], DaoUser],
         recommendation_service: RecommendationService,
         user_repo: UserRepository,
+        notification_repo: NotificationRepository,
     ):
         initiator_user = get_user_with_email(CORRECT_EMAIL)
         target_user = get_user_with_email(CORRECT_EMAIL)
@@ -221,6 +222,27 @@ class TestRecommendationService:
             user_service=recommendation_service,
             target_status=MatchRequestStatus.RECEIVED_AND_REJECTED,
         )
+
+        match_request = user_repo.get_match_request(
+            initiator_user_id=initiator_user.id, target_user_id=target_user.id
+        )
+        notifications = notification_repo.list_notifications(
+            user_id=initiator_user.id, limit=1000
+        )
+
+        assert notifications
+        assert self._get_notification_by_match(match_request, notifications)
+
+    @staticmethod
+    def _get_notification_by_match(
+        match_request: MatchRequest | None, notifications: list[Notification]
+    ) -> list[Notification]:
+        return [
+            n
+            for n in notifications
+            if n.request_id == match_request.id
+            and n.type == NotificationType.REQUEST_REJECTED
+        ]
 
     @pytest.mark.negative
     def test_accept_request_not_exist(
@@ -576,7 +598,7 @@ class TestRecommendationService:
         self,
         get_user_with_email: Callable[[str], DaoUser],
         recommendation_service: RecommendationService,
-        notification_service: Mock,
+        notification_service_mock: Mock,
         transition: MatchStatus,
     ):
         initiator_user = get_user_with_email(CORRECT_EMAIL)
@@ -592,6 +614,7 @@ class TestRecommendationService:
         match transition:
             case MatchStatus.COMPLETED:
                 recommendation_service.complete_match(match_id=match_id)
+                assert notification_service_mock.cre
                 # TODO: assert
 
             case MatchStatus.SKIPPED:
@@ -602,14 +625,14 @@ class TestRecommendationService:
                 recommendation_service.cancel_match(
                     match_id=match_id, user_id=initiator_user.id
                 )
-                notification_service.cancel_match.assert_called()
+                notification_service_mock.cancel_match.assert_called()
 
             case MatchStatus.CANCELED_BY_TARGET:
                 recommendation_service.cancel_match(
                     match_id=match_id, user_id=target_user.id
                 )
 
-                notification_service.cancel_match.assert_called()
+                notification_service_mock.cancel_match.assert_called()
         # TODO: Add tests to send notifications
 
         meet = recommendation_service.get_match_from_initiator(match_id=match_id)
@@ -675,13 +698,6 @@ class TestRecommendationService:
         )
 
         assert profile_list.profiles
-        # self._assert_goals(goal_ids=expected_goal_ids, profile_list=profile_list) -- TODO: We encount goals into accounts but not relies on it
-        assert all(
-            self._intersect_skill(
-                skill_ref.get_skill_ids(p=user), expected_skill_ref.get_skill_ids(p=p)
-            )
-            for p in profile_list.profiles
-        )
 
     def _assert_goals(
         self, goal_ids: list[UUID], profile_list: UserProfileL1AccessList

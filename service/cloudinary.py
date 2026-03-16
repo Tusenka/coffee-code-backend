@@ -27,7 +27,9 @@ class CloudinaryService:
             upload_result = upload(image.file)
             file_url: str = upload_result["secure_url"]
             logger.info(
-                "Изображение %s выгружено на сервер Cloudinary.", image.filename
+                "Изображение %s выгружено на сервер Cloudinary. %s",
+                image.filename,
+                file_url,
             )
             return file_url
         except Exception as e:

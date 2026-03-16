@@ -456,7 +456,9 @@ class UserRepository:
             user.bio = user_data.bio or user.bio
 
             user.education = user_data.education or user.education
-            user.experience= user_data.experience or user.education
+            user.experience = (
+                user_data.experience if user.experience is not None else user.experience
+            )
             user.workplace = user_data.workplace or user.workplace
             user.birthday = user_data.birthday or user.birthday
             user.updated_at = datetime.datetime.now(datetime.UTC)
@@ -541,8 +543,6 @@ class UserRepository:
                 self._activate_user(session=session, user=user)
             if user_data.is_active == False:
                 self._deactivate_user(user=user, session=session)
-
-            session.add(user.settings)
             logger.info(
                 """Изменены предпочтения пользователя %s.
                 Старые предпочтения: %s.
@@ -593,7 +593,7 @@ class UserRepository:
             raise UpdateUserActiveNotAllowed(user_id=user.id)
 
         if not user.quants:
-            logger.error("У пользователя %s отсутствуют встречи.", user)
+            logger.error("У пользователя %s отсутствует время.", user)
             raise UpdateUserActiveNotAllowed(user_id=user.id)
 
         user.settings.is_active = True
@@ -740,13 +740,14 @@ class UserRepository:
                     photo_url=photo_url,
                     photo_s3_key="",
                 )
+                session.add(photo)
             else:
                 logger.info(
                     "Фотография пользователя %s найдена в базе данных.", user_id
                 )
                 photo = photo[0]
+                photo.photo_url = photo_url
 
-            session.add(photo)
             logger.info("Фотография пользователя %s установлена.", user_id)
 
     def update_user_timezone(self, timezone_id: int, user_id: UUID):
@@ -840,16 +841,19 @@ class UserRepository:
         self,
         user_id: UUID,
         limit: int = 100,
+        strict: bool = True,
     ) -> list[User]:
         with self.db.get_session() as session:
             user_goals = self._get_user_goal_ids(user_id=user_id, session=session)
             pure_goal_result = self._pure_goal_ids(
                 user_goals=user_goals,
             )
-            skill_filter_based_on_goal = self._skill_filter_for_goals(pure_goal_result)
+            skill_filter_based_on_goal = (
+                self._skill_filter_for_goals(pure_goal_result) if strict else ""
+            )
 
             sql = (
-                "SELECT *, skill_count*goal_count as score FROM ("
+                "SELECT *, (skill_count+1)*(goal_count+1) as score FROM ("
                 "SELECT "
                 "us.id as id, "
                 "(SELECT count(*) FROM user_skills ss WHERE ss.user_id = us.id AND ss.skill_id IN (SELECT skill_id FROM user_mentor_skills so WHERE so.user_id=:user_id)) as skill_count, "
@@ -862,15 +866,15 @@ class UserRepository:
                 "JOIN user_quants q ON q.user_id = us.id "
                 "JOIN user_settings uss ON uss.user_id = us.id "
                 "WHERE "
-                "q.quant_id IN (SELECT q_o.quant_id FROM user_quants q_o WHERE q_o.user_id=:user_id) "
-                "AND NOT EXISTS (SELECT 1 FROM matches um WHERE um.initiator_user_id = us.id AND um.target_user_id = :user_id) "
+                "NOT EXISTS (SELECT 1 FROM matches um WHERE um.initiator_user_id = us.id AND um.target_user_id = :user_id) "
                 "AND NOT EXISTS (SELECT 1 FROM matches um WHERE um.target_user_id = us.id AND um.initiator_user_id = :user_id) "
                 "AND uss.is_active "
                 "AND us.id != :user_id) "
                 "as ui "
-                "WHERE goal_count>0 "
+                "WHERE "
+                + ("goal_count>0 " if strict else "1=1 ")
                 + skill_filter_based_on_goal
-                + "ORDER BY mentor_role, mentee_role, score, skill_count, goal_count DESC "
+                + " ORDER BY mentor_role, mentee_role, score, skill_count, goal_count DESC "
                 "LIMIT :limit"
             )
             params = {"user_id": user_id, "limit": limit}
@@ -1198,7 +1202,7 @@ class UserRepository:
             match[0].status = MatchRequestStatus.APPROVED
             logger.info("%s принял запрос от %s.", initiator_user_id, target_user_id)
 
-    def reject_match(self, initiator_user_id: UUID, target_user_id: UUID):
+    def reject_match(self, initiator_user_id: UUID, target_user_id: UUID) -> UUID:
         logger.debug("%s отклоняет запрос от %s...")
 
         with self.db.get_session() as session:
@@ -1225,7 +1229,9 @@ class UserRepository:
             match[0].status = MatchRequestStatus.REJECTED
             logger.info("%s отклонил запрос от %s.", initiator_user_id, target_user_id)
 
-    def send_match_request(self, initiator_user_id: UUID, target_user_id: UUID):
+            return match[0].id
+
+    def send_match_request(self, initiator_user_id: UUID, target_user_id: UUID) -> UUID:
         logger.debug("%s отправляет запрос на образование пары к %s...")
 
         with self.db.get_session() as session:
@@ -1280,6 +1286,8 @@ class UserRepository:
                 initiator_user_id,
                 target_user_id,
             )
+
+            return match[0].id
 
     def get_match_request(
         self, initiator_user_id: UUID, target_user_id: UUID

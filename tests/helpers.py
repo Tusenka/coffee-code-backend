@@ -3,10 +3,10 @@ import random
 from pathlib import Path
 from uuid import UUID
 
-from tests.db import ContactType
-from tests.db import User
-from tests.db import UserHelperRepository
-from tests.db import UserRepository
+from db.constants import ContactType
+from db.model import User
+from db.user_helper_repository import UserHelperRepository
+from db.user_repository import UserRepository
 from tests.path_utils import PathUtils
 from tests.service.constants import CORRECT_EMAIL
 

@@ -19,7 +19,7 @@ from sqlalchemy import (
     Index,
     BigInteger,
 )
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -27,6 +27,7 @@ from db.enums import (
     MatchRequestStatus,
     UserMatchStatus,
     MatchStatus,
+    NotificationType,
 )
 
 if TYPE_CHECKING:
@@ -671,3 +672,28 @@ class Timezone(Base):
     ian = Column(String, nullable=False, unique=True)
 
     users = relationship("User", back_populates="timezone")
+
+
+class Notification(UUIDMixin, Base):
+    """Уведомление для пользователя."""
+
+    __tablename__ = "notifications"
+
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    type = Column(Enum(NotificationType), nullable=False)
+    title = Column(String(256), nullable=False)
+    message = Column(String, nullable=True)
+    created_at = Column(TIMESTAMP, nullable=False, server_default=func.now())
+    read_at = Column(TIMESTAMP, nullable=True)
+    # Optional foreign keys to related entities
+    match_id = Column(UUID(as_uuid=True), ForeignKey("matches.id"), nullable=True)
+    request_id = Column(
+        UUID(as_uuid=True), ForeignKey("match_requests.id"), nullable=True
+    )
+
+    # Relationships
+    user = relationship("User", backref="notifications")
+    match = relationship("Match")
+    request = relationship("MatchRequest")

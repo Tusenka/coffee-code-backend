@@ -8,13 +8,14 @@ from uuid import UUID
 from pydantic import BaseModel as PydanticBaseModel
 
 from db.constants import ContactType
-from db.enums import MatchRequestStatus as DaoMatchRequestStatus
+from db.enums import MatchRequestStatus as DaoMatchRequestStatus, NotificationType
 from db.model import Goal as DaoGoal, TimeQuant
 
 from db.model import UserContact as DaoUserContact
 from db.model import MatchCriteria as DaoMatchCriteria
 
 from db.model import Match as DaoMatch
+from db.model import Notification as DaoNotification
 from db.model import Skill as DaoSkill
 from db.model import Timezone as DaoTimezone
 from db.model import User as DaoUser
@@ -182,6 +183,26 @@ class Match(BaseModel):
             ),
             date_at=match.date_at,
             id=match.id,
+        )
+
+
+class Notification(BaseModel):
+    id: UUID
+    type: NotificationType
+    title: str | None = None
+    message: str | None = None
+    created_at: datetime
+    read_at: datetime | None = None
+
+    @staticmethod
+    def from_dao(notification: DaoNotification) -> "Notification":
+        return Notification(
+            id=notification.id,
+            type=notification.type,
+            title=notification.title,
+            message=notification.message,
+            created_at=notification.created_at,
+            read_at=notification.read_at,
         )
 
 
@@ -523,3 +544,9 @@ class UserSubscription(BaseModel):
             max_matches_per_week=3,
             valid_until=datetime.now() + timedelta(days=10),
         )
+
+
+class NotificationList(BaseModel):
+    notifications: list[Notification]
+    total: int
+    unread_count: int

@@ -34,15 +34,6 @@ def upgrade() -> None:
         enum_values_to_rename=[("UNFILLED_CUU", "UNFILLED")],
     )
     # ### end Alembic commands ###
-    if context.get_x_argument(as_dictionary=True).get("data", None):
-        data_upgrades()
-
-
-def data_upgrades():
-    for file in os.listdir("db/data"):
-        if file.endswith(".sql"):
-            with open(f"db/data/{file}", "r") as f:
-                op.execute(f.read())
 
 
 def downgrade() -> None:

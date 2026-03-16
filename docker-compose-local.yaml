@@ -6,14 +6,14 @@ services:
     container_name: postgres_container
     shm_size: '4gb'
     environment:
-      POSTGRES_USER: code_father
-      POSTGRES_PASSWORD: 10Fh5GP3g
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
       POSTGRES_DB: code_father
       PGDATA: /var/lib/postgresql/data/pgdata
     ports: ['5432:5432']
     volumes: [./.pgdata:/var/lib/postgresql/data/pgdata]
     healthcheck:
-      test: [CMD-SHELL, pg_isready -U code_father -d code_father]
+      test: [CMD-SHELL, pg_isready -U test -d code_father]
       interval: 10s
       timeout: 10s
       retries: 5

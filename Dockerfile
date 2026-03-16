@@ -5,6 +5,6 @@ WORKDIR /usr/src/app
 COPY requirements.txt /usr/src/app/
 RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
-COPY coffee_and_code-develop /usr/src/app
+COPY . /usr/src/app
 
 ENTRYPOINT ["python", "app.py"]

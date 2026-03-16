@@ -10,7 +10,9 @@ from starlette.testclient import TestClient
 
 from api.app import app
 from db.constants import ContactType
-from db.model import UserContact, Match
+from db.enums import NotificationType
+from db.model import UserContact, Match, Notification
+from db.notification_repository import NotificationRepository
 from db.user_helper_repository import UserHelperRepository
 from db.user_repository import UserRepository
 from service.model import Timezone, Goal, Skill, User, UserProfile
@@ -25,6 +27,7 @@ from tests.api.constants import (
     CORRECT_EMAIL,
     API_VERSION,
 )
+from tests.db.constants import NotificationData
 from tests.helpers import HelperDataLoader
 
 
@@ -36,6 +39,11 @@ def user_repo() -> UserRepository:
 @pytest.fixture(scope="session")
 def user_helper_repo() -> UserHelperRepository:
     return UserHelperRepository()
+
+
+@pytest.fixture(scope="session")
+def notification_repo() -> NotificationRepository:
+    return NotificationRepository()
 
 
 @pytest.fixture(scope="session")
@@ -262,3 +270,18 @@ def get_match(
             )
 
     return func
+
+
+@pytest.fixture(scope="session")
+def notification_factory(
+    notification_repo: NotificationRepository,
+) -> Callable[..., Notification]:
+    def ans(user_id: UUID, title: str = NotificationData.title):
+        return notification_repo.create(
+            user_id=user_id,
+            notification_type=NotificationType.MATCH_CREATED,
+            title=NotificationData.title,
+            message=NotificationData.message,
+        )
+
+    return ans
