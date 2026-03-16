@@ -10,9 +10,9 @@ from db.model import TimeQuant as DaoTimeQuant
 
 # [TimeQuant(day, hour, id), ]
 class UserInterval(BaseModel):
-    day: int
-    startHour: int = Field(alias="startHour")
-    endHour: int = Field(alias="endHour")
+    day: int = Field(ge=1, le=7)
+    startHour: int = Field(alias="startHour", ge=0, le=23)
+    endHour: int = Field(alias="endHour", ge=1, le=24)
 
     def __hash__(self):
         return hash(

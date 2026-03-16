@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from api.routers import admin, helper, user, healthcheck, recommendation
+from api.routers import admin, helper, user, healthcheck, recommendation, notification
 
 import logging.config
 
@@ -12,12 +12,12 @@ app = FastAPI()
 path = os.path.join(os.path.dirname(__file__), "../utils/logger/config.json")
 with open(path) as config:
     logging.config.dictConfig(json.load(config))
-    logging.getLogger().addFilter(
-        lambda log_record: log_record.filename.startswith("db.")
-    )
-    logging.getLogger().addFilter(
-        lambda log_record: log_record.filename.startswith("agent.")
-    )
+    # logging.getLogger().addFilter(
+    #     lambda log_record: log_record.filename.startswith("db.")
+    # )
+    # logging.getLogger().addFilter(
+    #     lambda log_record: log_record.filename.startswith("agent.")
+    # )
     logging.getLogger("uvicorn.access").addFilter(
         lambda log_record: log_record.getMessage().find("/health") == -1
     )
@@ -38,3 +38,4 @@ app.include_router(admin.app)
 app.include_router(healthcheck.app)
 
 app.include_router(recommendation.app)
+app.include_router(notification.app)

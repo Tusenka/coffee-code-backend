@@ -183,13 +183,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("telegram_id"),
     )
-    # ### end Alembic commands ###
-    if context.get_x_argument(as_dictionary=True).get("data", None):
-        data_upgrades()
-
-
-def data_upgrades():
-    pass
 
 
 def downgrade() -> None:

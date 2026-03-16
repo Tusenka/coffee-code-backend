@@ -1,13 +1,17 @@
 import datetime
 from typing import Callable
+from uuid import UUID
 
 import pytest
 
-from db.model import User
+from db.enums import MatchRequestStatus, NotificationType
+from db.model import User, MatchRequest, Match
 from db.user_repository import UserRepository
+from service.model import Notification
 from service.notification_service import NotificationService
 from service.recommendation_service import RecommendationService
 from tests.service.constants import CORRECT_EMAIL
+from db.model import User as DaoUser
 
 
 @pytest.mark.skip(
@@ -35,3 +39,39 @@ class TestNotificationService:
         notification_service.send_match(
             match=match, initiator_user=user1, target_user=user2
         )
+
+        self._assert_notification_list(
+            user_id=user1.id,
+            notifications_service=notification_service,
+            match=match,
+            expected_type=NotificationType.MATCH_CREATED,
+        )
+        self._assert_notification_list(
+            user_id=user1.id,
+            notifications_service=notification_service,
+            match=match,
+            expected_type=NotificationType.MATCH_CREATED,
+        )
+
+
+    @staticmethod
+    def _assert_notification_list(
+        user_id: UUID,
+        notifications_service: NotificationService,
+        match_request: MatchRequest | None = None,
+        match: Match | None = None,
+        expected_type: NotificationType | None = None,
+    ):
+        assert match_request is None or match is None
+        notifications = notifications_service.list_notifications(
+            user_id=user_id, limit=1000
+        ).notifications
+
+        assert notifications
+        assert [
+            n
+            for n in notifications
+            if (not match_request or n.request_id == match_request.id)
+            and (not match_request or n.match_id == match.id)
+            and (not expected_type or n.type == expected_type)
+        ]

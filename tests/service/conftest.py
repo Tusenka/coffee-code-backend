@@ -168,15 +168,20 @@ def get_user_with_email(
 
 @pytest.fixture(scope="session")
 def recommendation_service(
-    notification_service: NotificationService,
+    notification_service_mock: NotificationService,
 ) -> RecommendationService:
-    return RecommendationService(notification_service=notification_service)
+    return RecommendationService(notification_service=notification_service_mock)
+
+
+@pytest.fixture(scope="session")
+def notification_service_mock() -> NotificationService:
+    notification_service_ = NotificationService()
+    return mock.Mock(wraps=notification_service_)
 
 
 @pytest.fixture(scope="session")
 def notification_service() -> NotificationService:
-    notification_service_ = NotificationService()
-    return mock.Mock(wraps=notification_service_)
+    return NotificationService()
 
 
 @pytest.fixture(scope="session")
@@ -229,6 +234,27 @@ def correct_update_user_data(random_timezone: Timezone):
         is_active=True,
         use_email_channel=True,
         use_telegram_channel=True,
+    )
+
+
+@pytest.fixture(scope="function")
+def bound_update_user_data() -> UserUpdate:
+    return UserUpdate(
+        email="",
+        first_name="",
+        last_name="",
+        bio="",
+        telegram_photo_url="",
+        phone="",
+        education="",
+        experience=0,
+        workplace="",
+        max_requests_per_week=0,
+        location="",
+        use_telegram_channel=False,
+        use_email_channel=False,
+        count_meets_in_week=0,
+        is_active=False,
     )
 
 

@@ -71,11 +71,13 @@ class RecommendationService:
             user_subscription=subscription,
             sent_match_requests=initiator_user.match_requests_sent,
         ):
-            self.user_repo.send_match_request(
+            request_id = self.user_repo.send_match_request(
                 initiator_user_id=initiator_user.id, target_user_id=target_user.id
             )
             self.notification_service.send_request(
-                initiator_user=initiator_user, target_user=target_user
+                initiator_user=initiator_user,
+                target_user=target_user,
+                request_id=request_id,
             )
         else:
             raise SubscriptionMatchRequests(user_id=initiator_user.id)
@@ -89,12 +91,14 @@ class RecommendationService:
         )
 
     def _accept_match_request(self, initiator_user: User, target_user: User):
-        self.user_repo.accept_match(
+        request_id = self.user_repo.accept_match(
             initiator_user_id=initiator_user.id, target_user_id=target_user.id
         )
 
         self.notification_service.accept_request(
-            initiator_user=initiator_user, target_user=target_user
+            initiator_user=initiator_user,
+            target_user=target_user,
+            request_id=request_id,
         )
 
     def reject_match_request(self, initiator_user_id: UUID, target_user_id: UUID):
@@ -106,11 +110,13 @@ class RecommendationService:
         )
 
     def _reject_match_request(self, initiator_user: User, target_user: User):
-        self.user_repo.reject_match(
+        request_id = self.user_repo.reject_match(
             initiator_user_id=initiator_user.id, target_user_id=target_user.id
         )
         self.notification_service.reject_request(
-            initiator_user=initiator_user, target_user=target_user
+            initiator_user=initiator_user,
+            target_user=target_user,
+            request_id=request_id,
         )
 
     def create_test_match(
@@ -132,7 +138,7 @@ class RecommendationService:
             )
 
     def cancel_match(self, match_id: UUID, user_id: UUID):
-        """Отмена встречи по идентификатору. `user_id` должен быть её участником и будет значится как инициатор отменты."""
+        """Отмена встречи по идентификатору. `user_id` должен быть её участником и будет значиться как инициатор отменты."""
         self.user_repo.cancel_match(match_id=match_id, user_id=user_id)
         self.notification_service.cancel_match(
             initiator_user=self.user_repo.get_user_by_id(user_id),
@@ -156,6 +162,7 @@ class RecommendationService:
         match = self.user_repo.get_match_by_id(match_id=match_id)
 
         target_user = self.user_repo.get_user_by_id(user_id=match.target_user_id)
+
         return Match.from_dao(
             match=match,
             original_user_id=match.initiator_user_id,
@@ -169,9 +176,18 @@ class RecommendationService:
     def list_user_l1_recommended_profiles(
         self, user_id: UUID
     ) -> UserProfileL1AccessList:
+        users = self.user_repo.generate_manual_best_intersection_user_list(
+            user_id=user_id
+        )
+        if not users:
+            users = self.user_repo.generate_manual_best_intersection_user_list(
+                user_id=user_id, strict=False
+            )
+        target_user = self.user_repo.get_user_by_id(user_id=user_id, extended=True)
+
         return UserProfileL1AccessList.from_dao(
-            self.user_repo.generate_manual_best_intersection_user_list(user_id=user_id),
-            target_user=self.user_repo.get_user_by_id(user_id=user_id, extended=True),
+            users,
+            target_user=target_user,
         )
 
     def check_and_get_user_l2_profile(

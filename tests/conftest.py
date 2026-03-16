@@ -1,7 +1,7 @@
 import pytest
 
-from tests.db import UserHelperRepository
-from tests.db import UserRepository
+from db.user_helper_repository import UserHelperRepository
+from db.user_repository import UserRepository
 from tests.helpers import HelperDataLoader
 
 

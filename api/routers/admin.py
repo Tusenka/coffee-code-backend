@@ -28,7 +28,7 @@ app = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(check_admin_token)
     responses={200: SWAGGER_OK_EXAMPLE},
 )
 async def reload_cities():
-    catalog_service.populate_timezones()
+    catalog_service.populate_cities()
 
     response = JSONResponse(
         {"message": "Информация о городах обновлена."}, status_code=200
@@ -74,7 +74,7 @@ async def create_meet(meet: CreateAdminMeetSchema):
     match_id = recommendation_service.create_match(meet=meet)
 
     return JSONResponse(
-        {"message": f"Встреча создана", "match_id": str(match_id)}, status_code=200
+        {"message": "Встреча создана", "match_id": str(match_id)}, status_code=200
     )
 
 
@@ -86,7 +86,7 @@ async def transfer_meet_status(transfer_meet: TransferAdminMeetSchema):
     match_id = recommendation_service.transfer_meet_status(transfer_meet=transfer_meet)
 
     return JSONResponse(
-        {"message": f"Встреча переведена", "match_id": str(match_id)}, status_code=200
+        {"message": "Встреча переведена", "match_id": str(match_id)}, status_code=200
     )
 
 
@@ -97,7 +97,7 @@ async def transfer_meet_status(transfer_meet: TransferAdminMeetSchema):
 async def create_meet_score(score: CreateAdminMeetScoreSchema):
     recommendation_service.add_review(score=score, user_id=score.user_id)
 
-    return JSONResponse({"message": f"Ревью на встречу отправлено"}, status_code=200)
+    return JSONResponse({"message": "Ревью на встречу отправлено"}, status_code=200)
 
 
 @app.post(
@@ -108,7 +108,8 @@ async def login_as_an_user(user_id: UUID):
     jwt_user = JWTUser(id=str(user_id))
     token = generate_jwt_token(user=jwt_user)
     response = JSONResponse(
-        {"message": f"Админ зашел под пользователем {user_id}"}, status_code=200
+        {"message": f"Пользователь {user_id} выполнил вход как администратор."},
+        status_code=200,
     )
 
     response.set_cookie(

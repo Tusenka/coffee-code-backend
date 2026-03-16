@@ -1,5 +1,6 @@
 import io
 import uuid
+from copy import copy
 from typing import Callable
 
 import pytest
@@ -42,6 +43,46 @@ class TestUserService:
             actual=user_profile,
             expected_timezone=random_timezone,
         )
+
+    @pytest.mark.positive
+    def test_update_profile_bound_values(
+        self,
+        random_timezone: Timezone,
+        user_service: UserService,
+        get_user_with_email: Callable[[str], User],
+        correct_update_user_data: UserUpdate,
+        bound_update_user_data: UserUpdate,
+    ):
+        user = get_user_with_email(CORRECT_EMAIL)
+
+        user_service.update_user_data(
+            user_id=user.id, user_data=correct_update_user_data
+        )
+        user_service.update_user_data(user_id=user.id, user_data=bound_update_user_data)
+
+        user_profile = user_service.get_user_profile(user.id)
+        expected_user_date = self._extract_expected_bound_data(correct_update_user_data)
+
+        self._assert_profile_updated(
+            expected=expected_user_date,
+            actual=user_profile,
+            expected_timezone=random_timezone,
+        )
+
+    @staticmethod
+    def _extract_expected_bound_data(
+        correct_update_user_data: UserUpdate,
+    ) -> UserUpdate:
+        expected_user_date = copy(correct_update_user_data)
+        expected_user_date.experience = 0
+        expected_user_date.is_active = False
+        expected_user_date.use_email_channel = False
+        expected_user_date.count_meets_in_week = 0
+        expected_user_date.max_requests_per_week = 0
+        expected_user_date.use_email_channel = False
+        expected_user_date.use_telegram_channel = False
+
+        return expected_user_date
 
     @pytest.mark.positive
     def test_update_user_data_idempotency(
@@ -305,9 +346,9 @@ class TestUserService:
         assert actual.user.education == (expected.education or actual.user.education), (
             "education mismatch"
         )
-        assert actual.user.experience == (expected.experience or actual.user.experience), (
-            "expierence mismatch"
-        )
+        assert actual.user.experience == (
+            expected.experience or actual.user.experience
+        ), "expierence mismatch"
         assert actual.user.workplace == (expected.workplace or actual.user.workplace), (
             "workplace mismatch"
         )
